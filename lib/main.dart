@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue/flutter_blue.dart';
-import 'dart:math'; // Import this for generating random numbers
+import 'dart:math';
 
 void main() => runApp(MaterialApp(
   theme: ThemeData(
@@ -25,6 +25,7 @@ class _OBDAppState extends State<OBDApp> {
   String rpm = "0";
   List<Map<String, String>> faultCodes = [];
   bool isSearching = false;
+  Timer? mockDTCTimer;
 
   List<String> dtcCommands = [
     "0300", // Powertrain
@@ -46,7 +47,6 @@ class _OBDAppState extends State<OBDApp> {
     "P0108": "Manifold Absolute Pressure/Barometric Pressure Circuit High Input",
     "P0109": "Manifold Absolute Pressure/Barometric Pressure Circuit Intermittent",
     "P0110": "Intake Air Temperature Circuit Malfunction",
-    // Add more P fault codes and their meanings as needed
     "P0111": "Intake Air Temperature Circuit Range/Performance Problem",
     "P0112": "Intake Air Temperature Circuit Low Input",
     "P0113": "Intake Air Temperature Circuit High Input",
@@ -57,10 +57,264 @@ class _OBDAppState extends State<OBDApp> {
     "P0118": "Engine Coolant Temperature Circuit High Input",
     "P0119": "Engine Coolant Temperature Circuit Intermittent",
     "P0120": "Throttle/Pedal Position Sensor/Switch A Circuit Malfunction",
-    // Add all other P fault codes as needed
+    "P0121": "Throttle/Pedal Position Sensor/Switch A Circuit Range/Performance Problem",
+    "P0122": "Throttle/Pedal Position Sensor/Switch A Circuit Low Input",
+    "P0123": "Throttle/Pedal Position Sensor/Switch A Circuit High Input",
+    "P0124": "Throttle/Pedal Position Sensor/Switch A Circuit Intermittent",
+    "P0125": "Insufficient Coolant Temperature for Closed Loop Fuel Control",
+    "P0126": "Insufficient Coolant Temperature for Stable Operation",
+    "P0127": "Intake Air Temperature Too High",
+    "P0128": "Coolant Thermostat (Coolant Temperature Below Thermostat Regulating Temperature)",
+    "P0129": "Barometric Pressure Too Low",
+    "P0130": "O2 Sensor Circuit Malfunction (Bank 1 Sensor 1)",
+    "P0131": "O2 Sensor Circuit Low Voltage (Bank 1 Sensor 1)",
+    "P0132": "O2 Sensor Circuit High Voltage (Bank 1 Sensor 1)",
+    "P0133": "O2 Sensor Circuit Slow Response (Bank 1 Sensor 1)",
+    "P0134": "O2 Sensor Circuit No Activity Detected (Bank 1 Sensor 1)",
+    "P0135": "O2 Sensor Heater Circuit Malfunction (Bank 1 Sensor 1)",
+    "P0136": "O2 Sensor Circuit Malfunction (Bank 1 Sensor 2)",
+    "P0137": "O2 Sensor Circuit Low Voltage (Bank 1 Sensor 2)",
+    "P0138": "O2 Sensor Circuit High Voltage (Bank 1 Sensor 2)",
+    "P0139": "O2 Sensor Circuit Slow Response (Bank 1 Sensor 2)",
+    "P0140": "O2 Sensor Circuit No Activity Detected (Bank 1 Sensor 2)",
+    "P0141": "O2 Sensor Heater Circuit Malfunction (Bank 1 Sensor 2)",
+    "P0142": "O2 Sensor Circuit Malfunction (Bank 1 Sensor 3)",
+    "P0143": "O2 Sensor Circuit Low Voltage (Bank 1 Sensor 3)",
+    "P0144": "O2 Sensor Circuit High Voltage (Bank 1 Sensor 3)",
+    "P0145": "O2 Sensor Circuit Slow Response (Bank 1 Sensor 3)",
+    "P0146": "O2 Sensor Circuit No Activity Detected (Bank 1 Sensor 3)",
+    "P0147": "O2 Sensor Heater Circuit Malfunction (Bank 1 Sensor 3)",
+    "P0148": "Fuel Delivery Error",
+    "P0149": "Fuel Timing Error",
+    "P0150": "O2 Sensor Circuit Malfunction (Bank 2 Sensor 1)",
+    "P0151": "O2 Sensor Circuit Low Voltage (Bank 2 Sensor 1)",
+    "P0152": "O2 Sensor Circuit High Voltage (Bank 2 Sensor 1)",
+    "P0153": "O2 Sensor Circuit Slow Response (Bank 2 Sensor 1)",
+    "P0154": "O2 Sensor Circuit No Activity Detected (Bank 2 Sensor 1)",
+    "P0155": "O2 Sensor Heater Circuit Malfunction (Bank 2 Sensor 1)",
+    "P0156": "O2 Sensor Circuit Malfunction (Bank 2 Sensor 2)",
+    "P0157": "O2 Sensor Circuit Low Voltage (Bank 2 Sensor 2)",
+    "P0158": "O2 Sensor Circuit High Voltage (Bank 2 Sensor 2)",
+    "P0159": "O2 Sensor Circuit Slow Response (Bank 2 Sensor 2)",
+    "P0160": "O2 Sensor Circuit No Activity Detected (Bank 2 Sensor 2)",
+    "P0161": "O2 Sensor Heater Circuit Malfunction (Bank 2 Sensor 2)",
+    "P0162": "O2 Sensor Circuit Malfunction (Bank 2 Sensor 3)",
+    "P0163": "O2 Sensor Circuit Low Voltage (Bank 2 Sensor 3)",
+    "P0164": "O2 Sensor Circuit High Voltage (Bank 2 Sensor 3)",
+    "P0165": "O2 Sensor Circuit Slow Response (Bank 2 Sensor 3)",
+    "P0166": "O2 Sensor Circuit No Activity Detected (Bank 2 Sensor 3)",
+    "P0167": "O2 Sensor Heater Circuit Malfunction (Bank 2 Sensor 3)",
+    "P0168": "Engine Coolant Temperature Too High",
+    "P0169": "Incorrect Fuel Composition",
+    "P0170": "Fuel Trim Malfunction (Bank 1)",
+    "P0171": "System Too Lean (Bank 1)",
+    "P0172": "System Too Rich (Bank 1)",
+    "P0173": "Fuel Trim Malfunction (Bank 2)",
+    "P0174": "System Too Lean (Bank 2)",
+    "P0175": "System Too Rich (Bank 2)",
+    "P0176": "Fuel Composition Sensor Circuit Malfunction",
+    "P0177": "Fuel Composition Sensor Circuit Range/Performance",
+    "P0178": "Fuel Composition Sensor Circuit Low Input",
+    "P0179": "Fuel Composition Sensor Circuit High Input",
+    "P0180": "Fuel Temperature Sensor A Circuit Malfunction",
+    "P0181": "Fuel Temperature Sensor A Circuit Range/Performance",
+    "P0182": "Fuel Temperature Sensor A Circuit Low Input",
+    "P0183": "Fuel Temperature Sensor A Circuit High Input",
+    "P0184": "Fuel Temperature Sensor A Circuit Intermittent",
+    "P0185": "Fuel Temperature Sensor B Circuit Malfunction",
+    "P0186": "Fuel Temperature Sensor B Circuit Range/Performance",
+    "P0187": "Fuel Temperature Sensor B Circuit Low Input",
+    "P0188": "Fuel Temperature Sensor B Circuit High Input",
+    "P0189": "Fuel Temperature Sensor B Circuit Intermittent",
+    "P0190": "Fuel Rail Pressure Sensor Circuit Malfunction",
+    "P0191": "Fuel Rail Pressure Sensor Circuit Range/Performance",
+    "P0192": "Fuel Rail Pressure Sensor Circuit Low Input",
+    "P0193": "Fuel Rail Pressure Sensor Circuit High Input",
+    "P0194": "Fuel Rail Pressure Sensor Circuit Intermittent",
+    "P0195": "Engine Oil Temperature Sensor Malfunction",
+    "P0196": "Engine Oil Temperature Sensor Range/Performance",
+    "P0197": "Engine Oil Temperature Sensor Low",
+    "P0198": "Engine Oil Temperature Sensor High",
+    "P0199": "Engine Oil Temperature Sensor Intermittent",
+    "P0200": "Injector Circuit Malfunction",
+    "P0201": "Injector Circuit/Open - Cylinder 1",
+    "P0202": "Injector Circuit/Open - Cylinder 2",
+    "P0203": "Injector Circuit/Open - Cylinder 3",
+    "P0204": "Injector Circuit/Open - Cylinder 4",
+    "P0205": "Injector Circuit/Open - Cylinder 5",
+    "P0206": "Injector Circuit/Open - Cylinder 6",
+    "P0207": "Injector Circuit/Open - Cylinder 7",
+    "P0208": "Injector Circuit/Open - Cylinder 8",
+    "P0209": "Injector Circuit/Open - Cylinder 9",
+    "P0210": "Injector Circuit/Open - Cylinder 10",
+    "P0211": "Injector Circuit/Open - Cylinder 11",
+    "P0212": "Injector Circuit/Open - Cylinder 12",
+    "P0213": "Cold Start Injector 1 Malfunction",
+    "P0214": "Cold Start Injector 2 Malfunction",
+    "P0215": "Engine Shutoff Solenoid Malfunction",
+    "P0216": "Injection Timing Control Circuit Malfunction",
+    "P0217": "Engine Over Temperature Condition",
+    "P0218": "Transmission Over Temperature Condition",
+    "P0219": "Engine Overspeed Condition",
+    "P0220": "Throttle/Pedal Position Sensor/Switch B Circuit Malfunction",
+    "P0221": "Throttle/Pedal Position Sensor/Switch B Circuit Range/Performance Problem",
+    "P0222": "Throttle/Pedal Position Sensor/Switch B Circuit Low Input",
+    "P0223": "Throttle/Pedal Position Sensor/Switch B Circuit High Input",
+    "P0224": "Throttle/Pedal Position Sensor/Switch B Circuit Intermittent",
+    "P0225": "Throttle/Pedal Position Sensor/Switch C Circuit Malfunction",
+    "P0226": "Throttle/Pedal Position Sensor/Switch C Circuit Range/Performance Problem",
+    "P0227": "Throttle/Pedal Position Sensor/Switch C Circuit Low Input",
+    "P0228": "Throttle/Pedal Position Sensor/Switch C Circuit High Input",
+    "P0229": "Throttle/Pedal Position Sensor/Switch C Circuit Intermittent",
+    "P0230": "Fuel Pump Primary Circuit Malfunction",
+    "P0231": "Fuel Pump Secondary Circuit Low",
+    "P0232": "Fuel Pump Secondary Circuit High",
+    "P0233": "Fuel Pump Secondary Circuit Intermittent",
+    "P0234": "Engine Overboost Condition",
+    "P0235": "Turbocharger Boost Sensor A Circuit Malfunction",
+    "P0236": "Turbocharger Boost Sensor A Circuit Range/Performance",
+    "P0237": "Turbocharger Boost Sensor A Circuit Low",
+    "P0238": "Turbocharger Boost Sensor A Circuit High",
+    "P0239": "Turbocharger Boost Sensor B Circuit Malfunction",
+    "P0240": "Turbocharger Boost Sensor B Circuit Range/Performance",
+    "P0241": "Turbocharger Boost Sensor B Circuit Low",
+    "P0242": "Turbocharger Boost Sensor B Circuit High",
+    "P0243": "Turbocharger Wastegate Solenoid A Malfunction",
+    "P0244": "Turbocharger Wastegate Solenoid A Range/Performance",
+    "P0245": "Turbocharger Wastegate Solenoid A Low",
+    "P0246": "Turbocharger Wastegate Solenoid A High",
+    "P0247": "Turbocharger Wastegate Solenoid B Malfunction",
+    "P0248": "Turbocharger Wastegate Solenoid B Range/Performance",
+    "P0249": "Turbocharger Wastegate Solenoid B Low",
+    "P0250": "Turbocharger Wastegate Solenoid B High",
+    "P0251": "Injection Pump Fuel Metering Control A Malfunction (Cam/Rotor/Injector)",
+    "P0252": "Injection Pump Fuel Metering Control A Range/Performance",
+    "P0253": "Injection Pump Fuel Metering Control A Low",
+    "P0254": "Injection Pump Fuel Metering Control A High",
+    "P0255": "Injection Pump Fuel Metering Control A Intermittent",
+    "P0256": "Injection Pump Fuel Metering Control B Malfunction (Cam/Rotor/Injector)",
+    "P0257": "Injection Pump Fuel Metering Control B Range/Performance",
+    "P0258": "Injection Pump Fuel Metering Control B Low",
+    "P0259": "Injection Pump Fuel Metering Control B High",
+    "P0260": "Injection Pump Fuel Metering Control B Intermittent",
+    "P0261": "Cylinder 1 Injector Circuit Low",
+    "P0262": "Cylinder 1 Injector Circuit High",
+    "P0263": "Cylinder 1 Contribution/Balance Fault",
+    "P0264": "Cylinder 2 Injector Circuit Low",
+    "P0265": "Cylinder 2 Injector Circuit High",
+    "P0266": "Cylinder 2 Contribution/Balance Fault",
+    "P0267": "Cylinder 3 Injector Circuit Low",
+    "P0268": "Cylinder 3 Injector Circuit High",
+    "P0269": "Cylinder 3 Contribution/Balance Fault",
+    "P0270": "Cylinder 4 Injector Circuit Low",
+    "P0271": "Cylinder 4 Injector Circuit High",
+    "P0272": "Cylinder 4 Contribution/Balance Fault",
+    "P0273": "Cylinder 5 Injector Circuit Low",
+    "P0274": "Cylinder 5 Injector Circuit High",
+    "P0275": "Cylinder 5 Contribution/Balance Fault",
+    "P0276": "Cylinder 6 Injector Circuit Low",
+    "P0277": "Cylinder 6 Injector Circuit High",
+    "P0278": "Cylinder 6 Contribution/Balance Fault",
+    "P0279": "Cylinder 7 Injector Circuit Low",
+    "P0280": "Cylinder 7 Injector Circuit High",
+    "P0281": "Cylinder 7 Contribution/Balance Fault",
+    "P0282": "Cylinder 8 Injector Circuit Low",
+    "P0283": "Cylinder 8 Injector Circuit High",
+    "P0284": "Cylinder 8 Contribution/Balance Fault",
+    "P0285": "Cylinder 9 Injector Circuit Low",
+    "P0286": "Cylinder 9 Injector Circuit High",
+    "P0287": "Cylinder 9 Contribution/Balance Fault",
+    "P0288": "Cylinder 10 Injector Circuit Low",
+    "P0289": "Cylinder 10 Injector Circuit High",
+    "P0290": "Cylinder 10 Contribution/Balance Fault",
+    "P0291": "Cylinder 11 Injector Circuit Low",
+    "P0292": "Cylinder 11 Injector Circuit High",
+    "P0293": "Cylinder 11 Contribution/Balance Fault",
+    "P0294": "Cylinder 12 Injector Circuit Low",
+    "P0295": "Cylinder 12 Injector Circuit High",
+    "P0296": "Cylinder 12 Contribution/Balance Fault",
+    "P0297": "Vehicle Over Speed Condition",
+    "P0298": "Engine Oil Over Temperature Condition",
+    "P0299": "Turbocharger/Supercharger Underboost",
+    "P0300": "Random/Multiple Cylinder Misfire Detected",
+    "P0301": "Cylinder 1 Misfire Detected",
+    "P0302": "Cylinder 2 Misfire Detected",
+    "P0303": "Cylinder 3 Misfire Detected",
+    "P0304": "Cylinder 4 Misfire Detected",
+    "P0305": "Cylinder 5 Misfire Detected",
+    "P0306": "Cylinder 6 Misfire Detected",
+    "P0307": "Cylinder 7 Misfire Detected",
+    "P0308": "Cylinder 8 Misfire Detected", 
+    "P0309": "Cylinder 9 Misfire Detected",
+    "P0310": "Cylinder 10 Misfire Detected",
+    "P0311": "Cylinder 11 Misfire Detected",
+    "P0312": "Cylinder 12 Misfire Detected",
+    "P0313": "Misfire Detected with Low Fuel",
+    "P0314": "Single Cylinder Misfire",
+    "P0315": "Crankshaft Position System Variation Not Learned",
+    "P0316": "Misfire Detected on Startup (First 1000 Revolutions)",
+    "P0317": "Rough Road Hardware Not Present",
+    "P0318": "Rough Road Sensor A Signal Circuit",
+    "P0319": "Rough Road Sensor A Signal Circuit Range/Performance",
+    "P0320": "Ignition/Distributor Engine Speed Input Circuit",
+    "P0321": "Ignition/Distributor Engine Speed Input Circuit Range/Performance",
+    "P0322": "Ignition/Distributor Engine Speed Input Circuit No Signal",
+    "P0323": "Ignition/Distributor Engine Speed Input Circuit Intermittent",
+    "P0324": "Knock Control System Error",
+    "P0325": "Knock Sensor 1 Circuit Malfunction (Bank 1 or Single Sensor)",
+    "P0326": "Knock Sensor 1 Circuit Range/Performance (Bank 1 or Single Sensor)",
+    "P0327": "Knock Sensor 1 Circuit Low Input (Bank 1 or Single Sensor)",
+    "P0328": "Knock Sensor 1 Circuit High Input (Bank 1 or Single Sensor)",
+    "P0329": "Knock Sensor 1 Circuit Intermittent (Bank 1 or Single Sensor)",
+    "P0330": "Knock Sensor 2 Circuit Malfunction (Bank 2)",
+    "P0331": "Knock Sensor 2 Circuit Range/Performance (Bank 2)",
+    "P0332": "Knock Sensor 2 Circuit Low Input (Bank 2)",
+    "P0333": "Knock Sensor 2 Circuit High Input (Bank 2)",
+    "P0334": "Knock Sensor 2 Circuit Intermittent (Bank 2)",
+    "P0335": "Crankshaft Position Sensor A Circuit Malfunction",
+    "P0336": "Crankshaft Position Sensor A Circuit Range/Performance",
+    "P0337": "Crankshaft Position Sensor A Circuit Low Input",
+    "P0338": "Crankshaft Position Sensor A Circuit High Input",
+    "P0339": "Crankshaft Position Sensor A Circuit Intermittent",
+    "P0340": "Camshaft Position Sensor A Circuit Malfunction (Bank 1 or Single Sensor)",
+    "P0341": "Camshaft Position Sensor A Circuit Range/Performance (Bank 1 or Single Sensor)",
+    "P0342": "Camshaft Position Sensor A Circuit Low Input (Bank 1 or Single Sensor)",
+    "P0343": "Camshaft Position Sensor A Circuit High Input (Bank 1 or Single Sensor)",
+    "P0344": "Camshaft Position Sensor A Circuit Intermittent (Bank 1 or Single Sensor)",
+    "P0345": "Camshaft Position Sensor A Circuit Malfunction (Bank 2)",
+    "P0346": "Camshaft Position Sensor A Circuit Range/Performance (Bank 2)",
+    "P0347": "Camshaft Position Sensor A Circuit Low Input (Bank 2)",
+    "P0348": "Camshaft Position Sensor A Circuit High Input (Bank 2)",
+    "P0349": "Camshaft Position Sensor A Circuit Intermittent (Bank 2)",
+    "P0350": "Ignition Coil Primary/Secondary Circuit Malfunction",
+    "P0351": "Ignition Coil A Primary/Secondary Circuit Malfunction",
+    "P0352": "Ignition Coil B Primary/Secondary Circuit Malfunction",
+    "P0353": "Ignition Coil C Primary/Secondary Circuit Malfunction",
+    "P0354": "Ignition Coil D Primary/Secondary Circuit Malfunction",
+    "P0355": "Ignition Coil E Primary/Secondary Circuit Malfunction",
+    "P0356": "Ignition Coil F Primary/Secondary Circuit Malfunction",
+    "P0357": "Ignition Coil G Primary/Secondary Circuit Malfunction",
+    "P0358": "Ignition Coil H Primary/Secondary Circuit Malfunction",
+    "P0359": "Ignition Coil I Primary/Secondary Circuit Malfunction",
+    "P0360": "Ignition Coil J Primary/Secondary Circuit Malfunction",
+    "P0361": "Ignition Coil K Primary/Secondary Circuit Malfunction",
+    "P0362": "Ignition Coil L Primary/Secondary Circuit Malfunction",
+    "P0370": "Timing Reference High Resolution Signal A Malfunction",
+    "P0371": "Timing Reference High Resolution Signal A Too Many Pulses",
+    "P0372": "Timing Reference High Resolution Signal A Too Few Pulses",
+    "P0373": "Timing Reference High Resolution Signal A Intermittent/Erratic Pulses",
+    "P0374": "Timing Reference High Resolution Signal A No Pulses",
+    "P0380": "Glow Plug/Heater Circuit A Malfunction",
+    "P0381": "Glow Plug/Heater Indicator Circuit Malfunction",
+    "P0382": "Glow Plug/Heater Circuit B Malfunction",
+    "P0385": "Crankshaft Position Sensor B Circuit Malfunction",
+    "P0386": "Crankshaft Position Sensor B Circuit Range/Performance",
+    "P0387": "Crankshaft Position Sensor B Circuit Low Input",
+    "P0388": "Crankshaft Position Sensor B Circuit High Input",
+    "P0389": "Crankshaft Position Sensor B Circuit Intermittent",
   };
 
-  @override
+   @override
   void initState() {
     super.initState();
     if (mockMode) {
@@ -110,13 +364,11 @@ class _OBDAppState extends State<OBDApp> {
     services.forEach((service) {
       service.characteristics.forEach((characteristic) {
         if (characteristic.properties.write) {
-          // Set up periodic RPM reading
           Timer.periodic(Duration(seconds: 2), (timer) {
             List<int> rpmCommand = utf8.encode("010C\r");
             characteristic.write(rpmCommand);
           });
 
-          // Start DTC reading loop
           readNextDTC(characteristic);
 
           characteristic.value.listen((value) {
@@ -125,7 +377,6 @@ class _OBDAppState extends State<OBDApp> {
               updateRPM(hexResponse);
             } else if (hexResponse.startsWith("43")) {
               updateDTC(hexResponse);
-              // Read next DTC after processing the current one
               readNextDTC(characteristic);
             }
           });
@@ -140,7 +391,6 @@ class _OBDAppState extends State<OBDApp> {
       characteristic.write(dtcCommand);
       currentDtcCommandIndex++;
     } else {
-      // Reset index to start over after a delay
       currentDtcCommandIndex = 0;
       Future.delayed(Duration(seconds: 10), () {
         readNextDTC(characteristic);
@@ -155,7 +405,7 @@ class _OBDAppState extends State<OBDApp> {
       connectedDevice = null;
     });
     simulateRPMResponse();
-    simulateDTCResponse();
+    startMockDTCSimulation();
   }
 
   void simulateRPMResponse() {
@@ -165,36 +415,44 @@ class _OBDAppState extends State<OBDApp> {
     });
   }
 
- void simulateDTCResponse() {
-  Timer.periodic(Duration(seconds: 10), (timer) {
-    String hexResponse = generateRandomDTCResponse();
-    updateDTC(hexResponse);
-  });
-}
-
-String generateRandomDTCResponse() {
-  Random random = Random();
-  int numberOfCodes = random.nextInt(3) + 1; // Random number of DTCs (1 to 3)
-
-  String dtcResponse = "43"; // Start with "43" (DTC response prefix)
-  
-  for (int i = 0; i < numberOfCodes; i++) {
-    // Generate a random "P" fault code:
-    // First character is always "P", then three hex digits
-    String dtcCode = "P" +
-        random.nextInt(10).toString() + // P0, P1, P2, etc.
-        random.nextInt(16).toRadixString(16).toUpperCase() + // 0-9, A-F
-        random.nextInt(256).toRadixString(16).padLeft(2, '0').toUpperCase(); // Two hex digits
-
-    // Convert DTC code to hex byte format like real ELM327 data
-    String byte1 = dtcCode.substring(1, 2) + dtcCode.substring(2, 3); // First two chars
-    String byte2 = dtcCode.substring(3, 5); // Last two chars
-
-    dtcResponse += " $byte1 $byte2";
+  void startMockDTCSimulation() {
+    mockDTCTimer?.cancel();
+    mockDTCTimer = Timer.periodic(Duration(seconds: 10), (timer) {
+      if (mockMode) {
+        String hexResponse = generateRandomDTCResponse();
+        updateDTC(hexResponse);
+      } else {
+        timer.cancel();
+      }
+    });
   }
 
-  return dtcResponse;
-}
+  void stopMockDTCSimulation() {
+    mockDTCTimer?.cancel();
+    mockDTCTimer = null;
+  }
+
+ String generateRandomDTCResponse() {
+    Random random = Random();
+    int numberOfCodes = random.nextInt(3) + 1; // Generate 1 to 3 codes
+
+    String dtcResponse = "43";
+    
+    for (int i = 0; i < numberOfCodes; i++) {
+      // Generate a random "P" fault code between P0100 and P0200
+      int codeNumber = random.nextInt(101) + 100; // 100 to 200
+      String dtcCode = "P0" + codeNumber.toString();
+
+      // Convert to the format expected by the OBD-II protocol
+      int firstByte = int.parse(dtcCode.substring(1, 3), radix: 16);
+      int secondByte = int.parse(dtcCode.substring(3, 5), radix: 16);
+
+      dtcResponse += " ${firstByte.toRadixString(16).padLeft(2, '0')} ${secondByte.toRadixString(16).padLeft(2, '0')}";
+    }
+
+    return dtcResponse;
+  }
+
   void updateRPM(String hexResponse) {
     if (hexResponse.length > 4) {
       String rpmHex = hexResponse.substring(4).replaceAll(' ', '');
@@ -205,31 +463,27 @@ String generateRandomDTCResponse() {
     }
   }
 
-void updateDTC(String hexResponse) {
-  List<Map<String, String>> codes = [];
-  if (hexResponse.startsWith("43")) {
-    List<String> bytes = hexResponse.split(' ');
-    for (int i = 1; i < bytes.length; i += 2) {
-      if (bytes[i] != "00" || (i + 1 < bytes.length && bytes[i + 1] != "00")) {
-        String dtcChar1 = _getDTCChar(int.parse(bytes[i][0], radix: 16));
-        String dtcChar2 = bytes[i][1];
-        String dtcChars34 = i + 1 < bytes.length ? bytes[i + 1] : "00";
-        String fullCode = "$dtcChar1$dtcChar2$dtcChars34";
+ 
+  void updateDTC(String hexResponse) {
+    List<Map<String, String>> codes = [];
+    if (hexResponse.startsWith("43")) {
+      List<String> bytes = hexResponse.split(' ');
+      for (int i = 1; i < bytes.length; i += 2) {
+        if (i + 1 < bytes.length) {
+          String dtcChar1 = _getDTCChar(int.parse(bytes[i][0], radix: 16));
+          String dtcChar2 = bytes[i][1];
+          String dtcChars34 = bytes[i + 1];
+          String fullCode = "$dtcChar1$dtcChar2$dtcChars34";
 
-        // Check if the code starts with "P"
-        if (fullCode.startsWith("P")) {
           String meaning = faultCodeMeanings[fullCode] ?? "Unknown fault code";
           codes.add({"code": fullCode, "meaning": meaning});
         }
       }
     }
+    setState(() {
+      faultCodes = codes; // Replace existing codes instead of appending
+    });
   }
-  setState(() {
-    faultCodes = [...faultCodes, ...codes];
-    // Remove duplicates
-    faultCodes = faultCodes.toSet().toList();
-  });
-}
 
   String _getDTCChar(int value) {
     switch (value) {
@@ -253,6 +507,78 @@ void updateDTC(String hexResponse) {
     }
   }
 
+  Widget buildCarDiagram() {
+    bool hasEngineFault = faultCodes.any((code) => code['code']!.startsWith('P'));
+    bool hasChassiFault = faultCodes.any((code) => code['code']!.startsWith('C'));
+    bool hasBodyFault = faultCodes.any((code) => code['code']!.startsWith('B'));
+    bool hasNetworkFault = faultCodes.any((code) => code['code']!.startsWith('U'));
+
+    return Container(
+      width: 200,
+      height: 120,
+      decoration: BoxDecoration(
+        color: Colors.grey[700],
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Stack(
+        children: [
+          // Engine area
+          Positioned(
+            top: 10,
+            left: 10,
+            child: Container(
+              width: 60,
+              height: 40,
+              decoration: BoxDecoration(
+                color: hasEngineFault ? Colors.red : Colors.grey[500],
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          ),
+          // Chassis area
+          Positioned(
+            bottom: 10,
+            left: 10,
+            right: 10,
+            child: Container(
+              height: 20,
+              decoration: BoxDecoration(
+                color: hasChassiFault ? Colors.orange : Colors.grey[500],
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          ),
+          // Body area
+          Positioned(
+            top: 60,
+            left: 80,
+            right: 10,
+            bottom: 40,
+            child: Container(
+              decoration: BoxDecoration(
+                color: hasBodyFault ? Colors.yellow : Colors.grey[500],
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          ),
+          // Network area 
+          Positioned(
+            top: 20,
+            right: 20,
+            child: Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                color: hasNetworkFault ? Colors.purple : Colors.grey[500],
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -269,6 +595,7 @@ void updateDTC(String hexResponse) {
               if (mockMode) {
                 simulateOBDData();
               } else {
+                stopMockDTCSimulation();
                 scanForDevices();
               }
             },
@@ -300,6 +627,13 @@ void updateDTC(String hexResponse) {
                   ),
                 ),
               ),
+              SizedBox(height: 20),
+              Text(
+                'Car Diagram:',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 10),
+              Center(child: buildCarDiagram()),
               SizedBox(height: 20),
               Text(
                 'Fault Codes:',
@@ -355,5 +689,11 @@ void updateDTC(String hexResponse) {
         tooltip: 'Scan for devices',
       ) : null,
     );
+  }
+
+  @override
+  void dispose() {
+    stopMockDTCSimulation();
+    super.dispose();
   }
 }

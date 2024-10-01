@@ -463,7 +463,6 @@ class _OBDAppState extends State<OBDApp> {
     }
   }
 
- 
   void updateDTC(String hexResponse) {
     List<Map<String, String>> codes = [];
     if (hexResponse.startsWith("43")) {

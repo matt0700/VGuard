@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue/flutter_blue.dart';
 import 'dart:math';
+import 'package:model_viewer_plus/model_viewer_plus.dart';
 
 void main() => runApp(MaterialApp(
   theme: ThemeData(
@@ -506,77 +507,19 @@ class _OBDAppState extends State<OBDApp> {
     }
   }
 
-  Widget buildCarDiagram() {
-    bool hasEngineFault = faultCodes.any((code) => code['code']!.startsWith('P'));
-    bool hasChassiFault = faultCodes.any((code) => code['code']!.startsWith('C'));
-    bool hasBodyFault = faultCodes.any((code) => code['code']!.startsWith('B'));
-    bool hasNetworkFault = faultCodes.any((code) => code['code']!.startsWith('U'));
-
-    return Container(
-      width: 200,
-      height: 120,
-      decoration: BoxDecoration(
-        color: Colors.grey[700],
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Stack(
-        children: [
-          // Engine area
-          Positioned(
-            top: 10,
-            left: 10,
-            child: Container(
-              width: 60,
-              height: 40,
-              decoration: BoxDecoration(
-                color: hasEngineFault ? Colors.red : Colors.grey[500],
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-          ),
-          // Chassis area
-          Positioned(
-            bottom: 10,
-            left: 10,
-            right: 10,
-            child: Container(
-              height: 20,
-              decoration: BoxDecoration(
-                color: hasChassiFault ? Colors.orange : Colors.grey[500],
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-          ),
-          // Body area
-          Positioned(
-            top: 60,
-            left: 80,
-            right: 10,
-            bottom: 40,
-            child: Container(
-              decoration: BoxDecoration(
-                color: hasBodyFault ? Colors.yellow : Colors.grey[500],
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-          ),
-          // Network area 
-          Positioned(
-            top: 20,
-            right: 20,
-            child: Container(
-              width: 30,
-              height: 30,
-              decoration: BoxDecoration(
-                color: hasNetworkFault ? Colors.purple : Colors.grey[500],
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  @override
+  Widget build3DCarModel() {
+  return Container(
+    height: 300,
+    child: ModelViewer(
+      src: 'assets/Mercedes+Benz+GLS+580.glb',
+      alt: "A 3D model of a Mercedes Benz GLS 580",
+      ar: true,
+      autoRotate: true,
+      cameraControls: true,
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -628,11 +571,11 @@ class _OBDAppState extends State<OBDApp> {
               ),
               SizedBox(height: 20),
               Text(
-                'Car Diagram:',
+                '3D Car Model:',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 10),
-              Center(child: buildCarDiagram()),
+              build3DCarModel(),
               SizedBox(height: 20),
               Text(
                 'Fault Codes:',
@@ -689,7 +632,6 @@ class _OBDAppState extends State<OBDApp> {
       ) : null,
     );
   }
-
   @override
   void dispose() {
     stopMockDTCSimulation();

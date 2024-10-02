@@ -4,9 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue/flutter_blue.dart';
 import 'dart:math' as math;
 import 'dart:math';
-
-
-
 void main() => runApp(MaterialApp(
   theme: ThemeData(
     primarySwatch: Colors.blue,
@@ -333,7 +330,21 @@ class HomePage extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.car_repair, size: 100, color: Colors.blue),
+          Container(
+            width: 120,  
+            height: 120,
+            decoration: BoxDecoration(
+              color: Colors.blue,  
+              shape: BoxShape.circle, 
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(10.0),  
+              child: Image.asset(
+                'assets/vguard-logo.png',
+                fit: BoxFit.contain,  
+              ),
+            ),
+          ),
           SizedBox(height: 20),
           Text(
             'Welcome to Vguard',
@@ -777,16 +788,13 @@ class _ScannerPageState extends State<ScannerPage> {
 
   String generateRandomDTCResponse() {
     Random random = Random();
-    int numberOfCodes = random.nextInt(3) + 1; // Generate 1 to 3 codes
-
+    int numberOfCodes = random.nextInt(3) + 1; 
     String dtcResponse = "43";
     
     for (int i = 0; i < numberOfCodes; i++) {
-      // Generate a random "P" fault code between P0100 and P0200
-      int codeNumber = random.nextInt(101) + 100; // 100 to 200
+      
+      int codeNumber = random.nextInt(101) + 100; 
       String dtcCode = "P0" + codeNumber.toString();
-
-      // Convert to the format expected by the OBD-II protocol
       int firstByte = int.parse(dtcCode.substring(1, 3), radix: 16);
       int secondByte = int.parse(dtcCode.substring(3, 5), radix: 16);
 
@@ -816,7 +824,6 @@ class _ScannerPageState extends State<ScannerPage> {
           String dtcChar2 = bytes[i][1];
           String dtcChars34 = bytes[i + 1];
           String fullCode = "$dtcChar1$dtcChar2$dtcChars34";
-
           String meaning = faultCodeMeanings[fullCode] ?? "Unknown fault code";
           codes.add({"code": fullCode, "meaning": meaning});
         }
@@ -1002,11 +1009,18 @@ class AboutUsPage extends StatelessWidget {
             CircleAvatar(
               radius: 50,
               backgroundColor: Colors.blue,
-              child: Icon(Icons.car_repair, size: 50, color: Colors.white),
+              child: ClipOval(
+                child: Image.asset(
+                  'assets/vguard-logo.png',
+                  width: 80,  // Adjust width to fit within the CircleAvatar
+                  height: 80, // Adjust height to fit within the CircleAvatar
+                  fit: BoxFit.cover,  // Ensure the logo covers the available space proportionally
+                ),
+              ),
             ),
             SizedBox(height: 20),
             Text(
-              'About OBD-II Diagnostics',
+              'About Vguard',
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 20),

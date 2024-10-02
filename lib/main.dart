@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue/flutter_blue.dart';
+import 'dart:math' as math;
 import 'dart:math';
-import 'package:model_viewer_plus/model_viewer_plus.dart';
+
+
 
 void main() => runApp(MaterialApp(
   theme: ThemeData(
@@ -14,12 +16,351 @@ void main() => runApp(MaterialApp(
   home: OBDApp(),
 ));
 
+class CarIndicator extends StatefulWidget {
+  final String affectedPart;
+  final Color primaryColor;
+  final Color accentColor;
+
+  CarIndicator({
+    required this.affectedPart,
+    this.primaryColor = Colors.white,
+    this.accentColor = Colors.red,
+  });
+
+  @override
+  _CarIndicatorState createState() => _CarIndicatorState();
+}
+
+class _CarIndicatorState extends State<CarIndicator> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    )..repeat(reverse: true);
+    _animation = Tween<double>(begin: 0.5, end: 1).animate(_controller);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final aspectRatio = 300 / 200; // Adjust this based on your car design
+        final width = constraints.maxWidth;
+        final height = width / aspectRatio;
+
+        return Column(
+          children: [
+            SizedBox(
+              width: width,
+              height: height,
+              child: AnimatedBuilder(
+                animation: _animation,
+                builder: (context, child) {
+                  return CustomPaint(
+                    size: Size(width, height),
+                    painter: ModernCarPainter(
+                      affectedPart: widget.affectedPart,
+                      animationValue: _animation.value,
+                      primaryColor: widget.primaryColor,
+                      accentColor: widget.accentColor,
+                    ),
+                  );
+                },
+              ),
+            ),
+            SizedBox(height: 10),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: ['Body', 'Engine', 'Chassis', 'Network'].map((part) {
+                return _buildLegendItem(part);
+              }).toList(),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildLegendItem(String part) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 20,
+          height: 20,
+          color: part == widget.affectedPart ? widget.accentColor : widget.primaryColor,
+        ),
+        SizedBox(width: 5),
+        Text(part, style: TextStyle(color: widget.primaryColor)),
+      ],
+    );
+  }
+}
+
+class ModernCarPainter extends CustomPainter {
+  final String affectedPart;
+  final double animationValue;
+  final Color primaryColor;
+  final Color accentColor;
+
+  ModernCarPainter({
+    required this.affectedPart,
+    required this.animationValue,
+    required this.primaryColor,
+    required this.accentColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0
+      ..color = primaryColor;
+
+    final fillPaint = Paint()
+      ..style = PaintingStyle.fill
+      ..color = accentColor.withOpacity(animationValue * 0.5);
+
+    final scale = size.width / 300;
+    canvas.scale(scale);
+
+    // Car body
+    final bodyPath = Path()
+      ..moveTo(30, 140)
+      ..lineTo(60, 140)
+      ..quadraticBezierTo(80, 140, 90, 120)
+      ..lineTo(110, 80)
+      ..quadraticBezierTo(150, 60, 190, 80)
+      ..lineTo(210, 120)
+      ..quadraticBezierTo(220, 140, 240, 140)
+      ..lineTo(270, 140)
+      ..quadraticBezierTo(280, 140, 280, 130)
+      ..lineTo(280, 110)
+      ..quadraticBezierTo(280, 100, 270, 100)
+      ..lineTo(250, 100)
+      ..lineTo(230, 60)
+      ..quadraticBezierTo(150, 40, 70, 60)
+      ..lineTo(50, 100)
+      ..lineTo(30, 100)
+      ..quadraticBezierTo(20, 100, 20, 110)
+      ..lineTo(20, 130)
+      ..quadraticBezierTo(20, 140, 30, 140);
+
+    if (affectedPart == 'Body') {
+      canvas.drawPath(bodyPath, fillPaint);
+    }
+    canvas.drawPath(bodyPath, paint);
+
+    // Wheels
+    _drawWheel(canvas, Offset(80, 140), paint);
+    _drawWheel(canvas, Offset(220, 140), paint);
+
+    // Windows
+    final windowPath = Path()
+      ..moveTo(100, 80)
+      ..lineTo(120, 80)
+      ..lineTo(140, 65)
+      ..lineTo(160, 65)
+      ..lineTo(180, 80)
+      ..lineTo(200, 80);
+    canvas.drawPath(windowPath, paint);
+
+    // Engine area
+    final enginePath = Path()
+      ..moveTo(30, 100)
+      ..lineTo(90, 100)
+      ..lineTo(90, 120)
+      ..lineTo(30, 120)
+      ..close();
+    if (affectedPart == 'Engine') {
+      canvas.drawPath(enginePath, fillPaint);
+    }
+    canvas.drawPath(enginePath, paint);
+
+    // Chassis area
+    final chassisPath = Path()
+      ..moveTo(100, 130)
+      ..lineTo(200, 130)
+      ..lineTo(200, 140)
+      ..lineTo(100, 140)
+      ..close();
+    if (affectedPart == 'Chassis') {
+      canvas.drawPath(chassisPath, fillPaint);
+    }
+    canvas.drawPath(chassisPath, paint);
+
+    // Network area (roof)
+    final networkPath = Path()
+      ..moveTo(120, 80)
+      ..lineTo(140, 65)
+      ..lineTo(160, 65)
+      ..lineTo(180, 80)
+      ..close();
+    if (affectedPart == 'Network') {
+      canvas.drawPath(networkPath, fillPaint);
+    }
+    canvas.drawPath(networkPath, paint);
+
+    // Headlights
+    canvas.drawCircle(Offset(40, 110), 5, paint);
+    canvas.drawCircle(Offset(260, 110), 5, paint);
+
+    // Text
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: 'Affected: $affectedPart',
+        style: TextStyle(color: primaryColor, fontSize: 16, fontWeight: FontWeight.bold),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout();
+    textPainter.paint(canvas, Offset(150 - textPainter.width / 2, 170));
+  }
+
+  void _drawWheel(Canvas canvas, Offset center, Paint paint) {
+    canvas.drawCircle(center, 25, paint);
+    canvas.drawCircle(center, 15, paint);
+    for (int i = 0; i < 8; i++) {
+      final angle = i * math.pi / 4;
+      canvas.drawLine(
+        center + Offset(15 * math.cos(angle), 15 * math.sin(angle)),
+        center + Offset(25 * math.cos(angle), 25 * math.sin(angle)),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    return true;
+  }
+}
 class OBDApp extends StatefulWidget {
   @override
   _OBDAppState createState() => _OBDAppState();
 }
 
 class _OBDAppState extends State<OBDApp> {
+  int _currentIndex = 0;
+
+  // Add CameraPage to the list of pages
+  final List<Widget> _pages = [
+    HomePage(),
+    ScannerPage(),
+    CameraPage(), // New Camera Page added here
+    AboutUsPage(),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Vguard'),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.info_outline, color: Colors.white),
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (BuildContext context) {
+                  return AlertDialog(
+                    title: Text('App Information'),
+                    content: Text('This app provides OBD-II diagnostics for your vehicle.'),
+                    actions: [
+                      TextButton(
+                        child: Text('Close'),
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                        },
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
+          ),
+        ],
+      ),
+      body: _pages[_currentIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        selectedItemColor: Colors.white,
+        unselectedItemColor: Colors.white70, // Slightly dimmed for unselected
+        backgroundColor: Theme.of(context).primaryColor, // Set background to match AppBar
+        items: [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: 'Home',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.scanner),
+            label: 'Diagnose',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.camera_alt), // Use a camera icon
+            label: 'Camera', // Add a label for Camera
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.info),
+            label: 'About Us',
+          ),
+        ],
+      ),
+    );
+  }
+}
+class HomePage extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.car_repair, size: 100, color: Colors.blue),
+          SizedBox(height: 20),
+          Text(
+            'Welcome to Vguard',
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class CameraPage extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Text('Camera Page'),
+    );
+  }
+}
+
+
+class ScannerPage extends StatefulWidget {
+  @override
+  _ScannerPageState createState() => _ScannerPageState();
+}
+
+class _ScannerPageState extends State<ScannerPage> {
   bool mockMode = true;
   FlutterBlue flutterBlue = FlutterBlue.instance;
   BluetoothDevice? connectedDevice;
@@ -27,6 +368,7 @@ class _OBDAppState extends State<OBDApp> {
   List<Map<String, String>> faultCodes = [];
   bool isSearching = false;
   Timer? mockDTCTimer;
+  String affectedPart = 'None';
 
   List<String> dtcCommands = [
     "0300", // Powertrain
@@ -313,9 +655,9 @@ class _OBDAppState extends State<OBDApp> {
     "P0387": "Crankshaft Position Sensor B Circuit Low Input",
     "P0388": "Crankshaft Position Sensor B Circuit High Input",
     "P0389": "Crankshaft Position Sensor B Circuit Intermittent",
-  };
+ };
 
-   @override
+  @override
   void initState() {
     super.initState();
     if (mockMode) {
@@ -433,7 +775,7 @@ class _OBDAppState extends State<OBDApp> {
     mockDTCTimer = null;
   }
 
- String generateRandomDTCResponse() {
+  String generateRandomDTCResponse() {
     Random random = Random();
     int numberOfCodes = random.nextInt(3) + 1; // Generate 1 to 3 codes
 
@@ -481,7 +823,8 @@ class _OBDAppState extends State<OBDApp> {
       }
     }
     setState(() {
-      faultCodes = codes; // Replace existing codes instead of appending
+      faultCodes = codes;
+      affectedPart = getAffectedPart(codes);
     });
   }
 
@@ -507,134 +850,179 @@ class _OBDAppState extends State<OBDApp> {
     }
   }
 
-  @override
-  Widget build3DCarModel() {
-  return Container(
-    height: 300,
-    child: ModelViewer(
-      src: 'assets/Mercedes+Benz+GLS+580.glb',
-      alt: "A 3D model of a Mercedes Benz GLS 580",
-      ar: true,
-      autoRotate: true,
-      cameraControls: true,
+  String getAffectedPart(List<Map<String, String>> codes) {
+    if (codes.isEmpty) return 'None';
+
+    String firstCode = codes[0]['code']!;
+    switch (firstCode[0]) {
+      case 'P':
+        return 'Engine';
+      case 'C':
+        return 'Chassis';
+      case 'B':
+        return 'Body';
+      case 'U':
+        return 'Network';
+      default:
+        return 'Unknown';
+    }
+  }
+  
+@override
+Widget build(BuildContext context) {
+  return SingleChildScrollView(
+    child: Padding(
+      padding: EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Add a new card for the mock mode toggle
+          Card(
+            child: Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Mode:',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  Row(
+                    children: [
+                      Text(
+                        mockMode ? 'Mock' : 'Actual',
+                        style: TextStyle(fontSize: 16),
+                      ),
+                      Switch(
+                        value: mockMode,
+                        onChanged: (value) {
+                          setState(() {
+                            mockMode = value;
+                            faultCodes.clear();
+                            affectedPart = 'None';
+                          });
+                          if (mockMode) {
+                            simulateOBDData();
+                          } else {
+                            stopMockDTCSimulation();
+                            scanForDevices();
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+            SizedBox(height: 20),
+            Card(
+            child: Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Connection Status:',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    mockMode
+                        ? 'Mock Device'
+                        : (connectedDevice != null
+                            ? connectedDevice!.name
+                            : (isSearching ? 'Searching...' : 'Not Connected')),
+                    style: TextStyle(fontSize: 16, color: Colors.blue),
+                  ),
+                ],
+              ),
+            ),
+          ),
+            if (!mockMode)
+            Padding(
+              padding: EdgeInsets.only(top: 20),
+              child: ElevatedButton(
+                onPressed: scanForDevices,
+                child: Text('Scan for Devices'),
+              ),
+            ),
+          SizedBox(height: 20),
+          Text(
+            '2D Car Indicator:',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          SizedBox(height: 10),
+          CarIndicator(affectedPart: affectedPart),
+          SizedBox(height: 20),
+          Text(
+            'Fault Codes:',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          SizedBox(height: 10),
+          faultCodes.isEmpty
+              ? Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(16.0),
+                    child: Text('No fault codes found', style: TextStyle(fontSize: 18)),
+                  ),
+                )
+              : Column(
+                  children: faultCodes.map((codeMap) => Card(
+                    margin: EdgeInsets.only(bottom: 10),
+                    child: ListTile(
+                      title: Text(codeMap['code']!, style: TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text(codeMap['meaning']!),
+                    ),
+                  )).toList(),
+                ),
+          // Add a button for scanning devices when not in mock mode
+
+        ],
+      ),
     ),
   );
 }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(mockMode ? 'OBD-II Data (Mock Mode)' : 'OBD-II Data'),
-        actions: [
-          IconButton(
-            icon: Icon(mockMode ? Icons.device_unknown : Icons.bluetooth),
-            onPressed: () {
-              setState(() {
-                mockMode = !mockMode;
-                faultCodes.clear();
-              });
-              if (mockMode) {
-                simulateOBDData();
-              } else {
-                stopMockDTCSimulation();
-                scanForDevices();
-              }
-            },
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Card(
-                elevation: 4,
-                child: Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: Column(
-                    children: [
-                      Text(
-                        'RPM',
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                      ),
-                      SizedBox(height: 10),
-                      Text(
-                        rpm,
-                        style: TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: Colors.blue),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              SizedBox(height: 20),
-              Text(
-                '3D Car Model:',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 10),
-              build3DCarModel(),
-              SizedBox(height: 20),
-              Text(
-                'Fault Codes:',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 10),
-              faultCodes.isEmpty
-                  ? Card(
-                      child: Padding(
-                        padding: EdgeInsets.all(16.0),
-                        child: Text('No fault codes found', style: TextStyle(fontSize: 18)),
-                      ),
-                    )
-                  : Column(
-                      children: faultCodes.map((codeMap) => Card(
-                        margin: EdgeInsets.only(bottom: 10),
-                        child: ListTile(
-                          title: Text(codeMap['code']!, style: TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: Text(codeMap['meaning']!),
-                        ),
-                      )).toList(),
-                    ),
-              SizedBox(height: 20),
-              Card(
-                child: Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Connection Status:',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
-                      Text(
-                        mockMode
-                            ? 'Mock Device'
-                            : (connectedDevice != null
-                                ? connectedDevice!.name
-                                : (isSearching ? 'Searching...' : 'Not Connected')),
-                        style: TextStyle(fontSize: 16, color: Colors.blue),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-      floatingActionButton: !mockMode ? FloatingActionButton(
-        onPressed: scanForDevices,
-        child: Icon(Icons.refresh),
-        tooltip: 'Scan for devices',
-      ) : null,
-    );
-  }
-  @override
   void dispose() {
     stopMockDTCSimulation();
     super.dispose();
+  }
+}
+
+class AboutUsPage extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircleAvatar(
+              radius: 50,
+              backgroundColor: Colors.blue,
+              child: Icon(Icons.car_repair, size: 50, color: Colors.white),
+            ),
+            SizedBox(height: 20),
+            Text(
+              'About OBD-II Diagnostics',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 20),
+            Text(
+              'We are dedicated to providing accurate and reliable OBD-II diagnostics for your vehicle. Our app helps you understand your car\'s health and performance.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16),
+            ),
+            SizedBox(height: 20),
+            Text(
+              'Version: 1.0.0',
+              style: TextStyle(fontSize: 14, color: Colors.grey),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

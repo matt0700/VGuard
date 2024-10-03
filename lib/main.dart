@@ -47,12 +47,11 @@ class _CarIndicatorState extends State<CarIndicator> with SingleTickerProviderSt
     _controller.dispose();
     super.dispose();
   }
-
-  @override
+ @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final aspectRatio = 300 / 200; // Adjust this based on your car design
+        final aspectRatio = 300 / 200;
         final width = constraints.maxWidth;
         final height = width / aspectRatio;
 
@@ -67,7 +66,7 @@ class _CarIndicatorState extends State<CarIndicator> with SingleTickerProviderSt
                   return CustomPaint(
                     size: Size(width, height),
                     painter: ModernCarPainter(
-                      affectedPart: widget.affectedPart,
+                      affectedParts: widget.affectedPart.split(', '),
                       animationValue: _animation.value,
                       primaryColor: widget.primaryColor,
                       accentColor: widget.accentColor,
@@ -91,13 +90,14 @@ class _CarIndicatorState extends State<CarIndicator> with SingleTickerProviderSt
   }
 
   Widget _buildLegendItem(String part) {
+    bool isAffected = widget.affectedPart.split(', ').contains(part);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
           width: 20,
           height: 20,
-          color: part == widget.affectedPart ? widget.accentColor : widget.primaryColor,
+          color: isAffected ? widget.accentColor : widget.primaryColor,
         ),
         SizedBox(width: 5),
         Text(part, style: TextStyle(color: widget.primaryColor)),
@@ -107,13 +107,13 @@ class _CarIndicatorState extends State<CarIndicator> with SingleTickerProviderSt
 }
 
 class ModernCarPainter extends CustomPainter {
-  final String affectedPart;
+  final List<String> affectedParts;
   final double animationValue;
   final Color primaryColor;
   final Color accentColor;
 
   ModernCarPainter({
-    required this.affectedPart,
+    required this.affectedParts,
     required this.animationValue,
     required this.primaryColor,
     required this.accentColor,
@@ -155,7 +155,7 @@ class ModernCarPainter extends CustomPainter {
       ..lineTo(20, 130)
       ..quadraticBezierTo(20, 140, 30, 140);
 
-    if (affectedPart == 'Body') {
+    if (affectedParts.contains('Body')) {
       canvas.drawPath(bodyPath, fillPaint);
     }
     canvas.drawPath(bodyPath, paint);
@@ -181,7 +181,7 @@ class ModernCarPainter extends CustomPainter {
       ..lineTo(90, 120)
       ..lineTo(30, 120)
       ..close();
-    if (affectedPart == 'Engine') {
+    if (affectedParts.contains('Engine')) {
       canvas.drawPath(enginePath, fillPaint);
     }
     canvas.drawPath(enginePath, paint);
@@ -193,7 +193,7 @@ class ModernCarPainter extends CustomPainter {
       ..lineTo(200, 140)
       ..lineTo(100, 140)
       ..close();
-    if (affectedPart == 'Chassis') {
+    if (affectedParts.contains('Chassis')) {
       canvas.drawPath(chassisPath, fillPaint);
     }
     canvas.drawPath(chassisPath, paint);
@@ -205,7 +205,7 @@ class ModernCarPainter extends CustomPainter {
       ..lineTo(160, 65)
       ..lineTo(180, 80)
       ..close();
-    if (affectedPart == 'Network') {
+    if (affectedParts.contains('Network')) {
       canvas.drawPath(networkPath, fillPaint);
     }
     canvas.drawPath(networkPath, paint);
@@ -217,7 +217,7 @@ class ModernCarPainter extends CustomPainter {
     // Text
     final textPainter = TextPainter(
       text: TextSpan(
-        text: 'Affected: $affectedPart',
+        text: 'Affected: ${affectedParts.join(", ")}',
         style: TextStyle(color: primaryColor, fontSize: 16, fontWeight: FontWeight.bold),
       ),
       textDirection: TextDirection.ltr,
@@ -244,6 +244,7 @@ class ModernCarPainter extends CustomPainter {
     return true;
   }
 }
+
 class OBDApp extends StatefulWidget {
   @override
   _OBDAppState createState() => _OBDAppState();
@@ -771,9 +772,9 @@ class _ScannerPageState extends State<ScannerPage> {
 
   void startMockDTCSimulation() {
     mockDTCTimer?.cancel();
-    mockDTCTimer = Timer.periodic(Duration(seconds: 10), (timer) {
+    mockDTCTimer = Timer.periodic(Duration(seconds: 5), (timer) {
       if (mockMode) {
-        String hexResponse = generateRandomDTCResponse();
+        String hexResponse = generateCyclicDTCResponse();
         updateDTC(hexResponse);
       } else {
         timer.cancel();
@@ -786,23 +787,35 @@ class _ScannerPageState extends State<ScannerPage> {
     mockDTCTimer = null;
   }
 
-  String generateRandomDTCResponse() {
-    Random random = Random();
-    int numberOfCodes = random.nextInt(3) + 1; 
-    String dtcResponse = "43";
+int _codeIndex = 0;
+int _codeNumber = 100;
+
+String generateCyclicDTCResponse() {
+  List<String> codeTypes = ['P', 'C', 'B', 'U'];
+  
+  int numberOfCodes = 3; // You can adjust this as needed
+  String dtcResponse = "43";
+
+  for (int i = 0; i < numberOfCodes; i++) {
+    String codeType = codeTypes[_codeIndex];
+    String dtcCode = "$codeType${_codeNumber.toString().padLeft(4, '0')}";
     
-    for (int i = 0; i < numberOfCodes; i++) {
-      
-      int codeNumber = random.nextInt(101) + 100; 
-      String dtcCode = "P0" + codeNumber.toString();
-      int firstByte = int.parse(dtcCode.substring(1, 3), radix: 16);
-      int secondByte = int.parse(dtcCode.substring(3, 5), radix: 16);
+    int firstByte = _codeIndex << 6 | int.parse(dtcCode.substring(1, 3));
+    int secondByte = int.parse(dtcCode.substring(3, 5));
 
-      dtcResponse += " ${firstByte.toRadixString(16).padLeft(2, '0')} ${secondByte.toRadixString(16).padLeft(2, '0')}";
-    }
+    dtcResponse += " ${firstByte.toRadixString(16).padLeft(2, '0')} ${secondByte.toRadixString(16).padLeft(2, '0')}";
 
-    return dtcResponse;
+    // Move to the next code type
+    _codeIndex = (_codeIndex + 1) % codeTypes.length;
+    
+    // Increment code number by 2
+    _codeNumber += 2;
+    if (_codeNumber > 9999) _codeNumber = 100; // Reset if we exceed 9999
   }
+
+  return dtcResponse;
+}
+
 
   void updateRPM(String hexResponse) {
     if (hexResponse.length > 4) {
@@ -814,66 +827,62 @@ class _ScannerPageState extends State<ScannerPage> {
     }
   }
 
-  void updateDTC(String hexResponse) {
-    List<Map<String, String>> codes = [];
-    if (hexResponse.startsWith("43")) {
-      List<String> bytes = hexResponse.split(' ');
-      for (int i = 1; i < bytes.length; i += 2) {
-        if (i + 1 < bytes.length) {
-          String dtcChar1 = _getDTCChar(int.parse(bytes[i][0], radix: 16));
-          String dtcChar2 = bytes[i][1];
-          String dtcChars34 = bytes[i + 1];
-          String fullCode = "$dtcChar1$dtcChar2$dtcChars34";
-          String meaning = faultCodeMeanings[fullCode] ?? "Unknown fault code";
-          codes.add({"code": fullCode, "meaning": meaning});
-        }
+void updateDTC(String hexResponse) {
+  List<Map<String, String>> codes = [];
+  if (hexResponse.startsWith("43")) {
+    List<String> bytes = hexResponse.split(' ');
+    for (int i = 1; i < bytes.length; i += 2) {
+      if (i + 1 < bytes.length) {
+        int firstByte = int.parse(bytes[i], radix: 16);
+        int secondByte = int.parse(bytes[i + 1], radix: 16);
+        
+        String dtcChar1 = _getDTCChar(firstByte >> 6);
+        String dtcChar2 = (firstByte & 0x3F).toString().padLeft(2, '0');
+        String dtcChars34 = secondByte.toString().padLeft(2, '0');
+        
+        String fullCode = "$dtcChar1$dtcChar2$dtcChars34";
+        String meaning = faultCodeMeanings[fullCode] ?? "Unknown fault code";
+        codes.add({"code": fullCode, "meaning": meaning});
       }
     }
-    setState(() {
-      faultCodes = codes;
-      affectedPart = getAffectedPart(codes);
-    });
   }
+  setState(() {
+    faultCodes = codes;
+    affectedPart = getAffectedPart(codes);
+  });
+}
 
-  String _getDTCChar(int value) {
-    switch (value) {
-      case 0: return "P0";
-      case 1: return "P1";
-      case 2: return "P2";
-      case 3: return "P3";
-      case 4: return "C0";
-      case 5: return "C1";
-      case 6: return "C2";
-      case 7: return "C3";
-      case 8: return "B0";
-      case 9: return "B1";
-      case 10: return "B2";
-      case 11: return "B3";
-      case 12: return "U0";
-      case 13: return "U1";
-      case 14: return "U2";
-      case 15: return "U3";
-      default: return "?";
-    }
+
+String _getDTCChar(int value) {
+  List<String> codeTypes = ['P', 'C', 'B', 'U'];
+  if (value >= 0 && value < codeTypes.length) {
+    return codeTypes[value];
   }
+  return "?";
+}
+String getAffectedPart(List<Map<String, String>> codes) {
+  if (codes.isEmpty) return 'None';
 
-  String getAffectedPart(List<Map<String, String>> codes) {
-    if (codes.isEmpty) return 'None';
-
-    String firstCode = codes[0]['code']!;
-    switch (firstCode[0]) {
+  Set<String> affectedParts = Set();
+  for (var code in codes) {
+    switch (code['code']![0]) {
       case 'P':
-        return 'Engine';
+        affectedParts.add('Engine');
+        break;
       case 'C':
-        return 'Chassis';
+        affectedParts.add('Chassis');
+        break;
       case 'B':
-        return 'Body';
+        affectedParts.add('Body');
+        break;
       case 'U':
-        return 'Network';
-      default:
-        return 'Unknown';
+        affectedParts.add('Network');
+        break;
     }
   }
+
+  return affectedParts.join(', ');
+}
   
 @override
 Widget build(BuildContext context) {

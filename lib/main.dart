@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue/flutter_blue.dart';
 import 'dart:math' as math;
 import 'dart:math';
-
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'package:flutter_cube/flutter_cube.dart';
 
 void main() => runApp(MaterialApp(
   theme: ThemeData(
@@ -49,11 +52,12 @@ class _CarIndicatorState extends State<CarIndicator> with SingleTickerProviderSt
     _controller.dispose();
     super.dispose();
   }
- @override
+
+  @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final aspectRatio = 300 / 200;
+        final aspectRatio = 300 / 200; // Adjust this based on your car design
         final width = constraints.maxWidth;
         final height = width / aspectRatio;
 
@@ -68,7 +72,7 @@ class _CarIndicatorState extends State<CarIndicator> with SingleTickerProviderSt
                   return CustomPaint(
                     size: Size(width, height),
                     painter: ModernCarPainter(
-                      affectedParts: widget.affectedPart.split(', '),
+                      affectedPart: widget.affectedPart,
                       animationValue: _animation.value,
                       primaryColor: widget.primaryColor,
                       accentColor: widget.accentColor,
@@ -92,14 +96,13 @@ class _CarIndicatorState extends State<CarIndicator> with SingleTickerProviderSt
   }
 
   Widget _buildLegendItem(String part) {
-    bool isAffected = widget.affectedPart.split(', ').contains(part);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
           width: 20,
           height: 20,
-          color: isAffected ? widget.accentColor : widget.primaryColor,
+          color: part == widget.affectedPart ? widget.accentColor : widget.primaryColor,
         ),
         SizedBox(width: 5),
         Text(part, style: TextStyle(color: widget.primaryColor)),
@@ -109,13 +112,13 @@ class _CarIndicatorState extends State<CarIndicator> with SingleTickerProviderSt
 }
 
 class ModernCarPainter extends CustomPainter {
-  final List<String> affectedParts;
+  final String affectedPart;
   final double animationValue;
   final Color primaryColor;
   final Color accentColor;
 
   ModernCarPainter({
-    required this.affectedParts,
+    required this.affectedPart,
     required this.animationValue,
     required this.primaryColor,
     required this.accentColor,
@@ -157,7 +160,7 @@ class ModernCarPainter extends CustomPainter {
       ..lineTo(20, 130)
       ..quadraticBezierTo(20, 140, 30, 140);
 
-    if (affectedParts.contains('Body')) {
+    if (affectedPart == 'Body') {
       canvas.drawPath(bodyPath, fillPaint);
     }
     canvas.drawPath(bodyPath, paint);
@@ -183,7 +186,7 @@ class ModernCarPainter extends CustomPainter {
       ..lineTo(90, 120)
       ..lineTo(30, 120)
       ..close();
-    if (affectedParts.contains('Engine')) {
+    if (affectedPart == 'Engine') {
       canvas.drawPath(enginePath, fillPaint);
     }
     canvas.drawPath(enginePath, paint);
@@ -195,7 +198,7 @@ class ModernCarPainter extends CustomPainter {
       ..lineTo(200, 140)
       ..lineTo(100, 140)
       ..close();
-    if (affectedParts.contains('Chassis')) {
+    if (affectedPart == 'Chassis') {
       canvas.drawPath(chassisPath, fillPaint);
     }
     canvas.drawPath(chassisPath, paint);
@@ -207,7 +210,7 @@ class ModernCarPainter extends CustomPainter {
       ..lineTo(160, 65)
       ..lineTo(180, 80)
       ..close();
-    if (affectedParts.contains('Network')) {
+    if (affectedPart == 'Network') {
       canvas.drawPath(networkPath, fillPaint);
     }
     canvas.drawPath(networkPath, paint);
@@ -219,7 +222,7 @@ class ModernCarPainter extends CustomPainter {
     // Text
     final textPainter = TextPainter(
       text: TextSpan(
-        text: 'Affected: ${affectedParts.join(", ")}',
+        text: 'Affected: $affectedPart',
         style: TextStyle(color: primaryColor, fontSize: 16, fontWeight: FontWeight.bold),
       ),
       textDirection: TextDirection.ltr,
@@ -246,7 +249,6 @@ class ModernCarPainter extends CustomPainter {
     return true;
   }
 }
-
 class OBDApp extends StatefulWidget {
   @override
   _OBDAppState createState() => _OBDAppState();
@@ -359,20 +361,171 @@ class HomePage extends StatelessWidget {
   }
 }
 
-class CameraPage extends StatelessWidget {
+class ScannerPage extends StatefulWidget {
+  @override
+  _ScannerPageState createState() => _ScannerPageState();
+}
+
+
+
+class CameraPage extends StatefulWidget {
+  @override
+  _CameraPageState createState() => _CameraPageState();
+}
+
+class _CameraPageState extends State<CameraPage> {
+  final ImagePicker _picker = ImagePicker();
+
+  // Map to hold the selected images for each vehicle part
+  Map<String, XFile?> _imageFileMap = {
+    'hood': null,
+    'left_side': null,
+    'right_side': null,
+    'back': null,
+    'front': null,
+    'roof': null,
+  };
+
+  // Roboflow API setup
+  final String apiKey = "fDWVFYW47OqG3Dj3LGkF"; // Replace with your API key
+  final String modelId = "cypres/exterior-damage-detection/3"; // Replace with your model ID
+  final String apiUrl =
+      "https://detect.roboflow.com/cypres/exterior-damage-detection/3?api_key=fDWVFYW47OqG3Dj3LGkF";
+
+  // Function to pick image for a particular part
+  Future<void> _pickImage(String part) async {
+    final XFile? selectedImage =
+        await _picker.pickImage(source: ImageSource.gallery);
+    setState(() {
+      _imageFileMap[part] = selectedImage;
+    });
+  }
+
+  // Check if all images for all parts are uploaded
+  bool _areAllImagesUploaded() {
+    return !_imageFileMap.values.any((image) => image == null);
+  }
+
+  // Function to send an image to the Roboflow API and get predictions
+  Future<Map<String, dynamic>> _getInference(XFile imageFile) async {
+    final request = http.MultipartRequest('POST', Uri.parse(apiUrl));
+    request.headers['Authorization'] = 'Bearer $apiKey';
+    request.files.add(await http.MultipartFile.fromPath('file', imageFile.path));
+
+    final response = await request.send();
+    if (response.statusCode == 200) {
+      final responseData = await http.Response.fromStream(response);
+      return jsonDecode(responseData.body); // Return the parsed response data
+    } else {
+      throw Exception("Failed to get prediction from Roboflow: ${response.statusCode}");
+    }
+  }
+
+  // Handle the logic when the 'Generate 3D Model' button is pressed
+  void _generate3DModel() async {
+    if (_areAllImagesUploaded()) {
+      // Send each image to Roboflow for inference
+      for (var part in _imageFileMap.keys) {
+        if (_imageFileMap[part] != null) {
+          try {
+            var result = await _getInference(_imageFileMap[part]!);
+            print("Prediction for $part: $result");
+            // Here, you can parse the result and process the 3D model accordingly
+            // For instance, store the predictions for later visualization
+          } catch (e) {
+            print("Error getting inference: $e");
+          }
+        }
+      }
+
+      // After processing all images, navigate to 3D model page
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ModelPage(imageFiles: _imageFileMap),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please upload images for all parts of the vehicle.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Text('Camera Page'),
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Upload Vehicle Images'),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView(
+              children: _imageFileMap.keys.map((part) {
+                return Column(
+                  children: [
+                    ListTile(
+                      title: Text(part.replaceAll('_', ' ').toUpperCase()),
+                      trailing: IconButton(
+                        icon: Icon(Icons.upload),
+                        onPressed: () => _pickImage(part),
+                      ),
+                    ),
+                    if (_imageFileMap[part] != null)
+                      Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Image.file(
+                          File(_imageFileMap[part]!.path),
+                          height: 150,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    Divider(),
+                  ],
+                );
+              }).toList(),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: _generate3DModel,
+            child: Text('Generate 3D Model'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ModelPage for after uploading all images
+class ModelPage extends StatelessWidget {
+  final Map<String, XFile?> imageFiles;
+
+  ModelPage({required this.imageFiles});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('3D Model'),
+      ),
+      body: Cube(
+        onSceneCreated: (Scene scene) {
+          scene.world.add(Object(
+            fileName: 'assets/your_model_file.glb', // Update with your model file path
+            position: Vector3(0.0, 0.0, 0.0),
+            scale: Vector3(1.0, 1.0, 1.0),
+          ));
+        },
+      ),
     );
   }
 }
 
 
-class ScannerPage extends StatefulWidget {
-  @override
-  _ScannerPageState createState() => _ScannerPageState();
-}
+
+
 
 class _ScannerPageState extends State<ScannerPage> {
   bool mockMode = true;
@@ -774,9 +927,9 @@ class _ScannerPageState extends State<ScannerPage> {
 
   void startMockDTCSimulation() {
     mockDTCTimer?.cancel();
-    mockDTCTimer = Timer.periodic(Duration(seconds: 5), (timer) {
+    mockDTCTimer = Timer.periodic(Duration(seconds: 10), (timer) {
       if (mockMode) {
-        String hexResponse = generateCyclicDTCResponse();
+        String hexResponse = generateRandomDTCResponse();
         updateDTC(hexResponse);
       } else {
         timer.cancel();
@@ -789,35 +942,23 @@ class _ScannerPageState extends State<ScannerPage> {
     mockDTCTimer = null;
   }
 
-int _codeIndex = 0;
-int _codeNumber = 100;
-
-String generateCyclicDTCResponse() {
-  List<String> codeTypes = ['P', 'C', 'B', 'U'];
-  
-  int numberOfCodes = 3; // You can adjust this as needed
-  String dtcResponse = "43";
-
-  for (int i = 0; i < numberOfCodes; i++) {
-    String codeType = codeTypes[_codeIndex];
-    String dtcCode = "$codeType${_codeNumber.toString().padLeft(4, '0')}";
+  String generateRandomDTCResponse() {
+    Random random = Random();
+    int numberOfCodes = random.nextInt(3) + 1; 
+    String dtcResponse = "43";
     
-    int firstByte = _codeIndex << 6 | int.parse(dtcCode.substring(1, 3));
-    int secondByte = int.parse(dtcCode.substring(3, 5));
+    for (int i = 0; i < numberOfCodes; i++) {
+      
+      int codeNumber = random.nextInt(101) + 100; 
+      String dtcCode = "P0" + codeNumber.toString();
+      int firstByte = int.parse(dtcCode.substring(1, 3), radix: 16);
+      int secondByte = int.parse(dtcCode.substring(3, 5), radix: 16);
 
-    dtcResponse += " ${firstByte.toRadixString(16).padLeft(2, '0')} ${secondByte.toRadixString(16).padLeft(2, '0')}";
+      dtcResponse += " ${firstByte.toRadixString(16).padLeft(2, '0')} ${secondByte.toRadixString(16).padLeft(2, '0')}";
+    }
 
-    // Move to the next code type
-    _codeIndex = (_codeIndex + 1) % codeTypes.length;
-    
-    // Increment code number by 2
-    _codeNumber += 2;
-    if (_codeNumber > 9999) _codeNumber = 100; // Reset if we exceed 9999
+    return dtcResponse;
   }
-
-  return dtcResponse;
-}
-
 
   void updateRPM(String hexResponse) {
     if (hexResponse.length > 4) {
@@ -829,62 +970,66 @@ String generateCyclicDTCResponse() {
     }
   }
 
-void updateDTC(String hexResponse) {
-  List<Map<String, String>> codes = [];
-  if (hexResponse.startsWith("43")) {
-    List<String> bytes = hexResponse.split(' ');
-    for (int i = 1; i < bytes.length; i += 2) {
-      if (i + 1 < bytes.length) {
-        int firstByte = int.parse(bytes[i], radix: 16);
-        int secondByte = int.parse(bytes[i + 1], radix: 16);
-        
-        String dtcChar1 = _getDTCChar(firstByte >> 6);
-        String dtcChar2 = (firstByte & 0x3F).toString().padLeft(2, '0');
-        String dtcChars34 = secondByte.toString().padLeft(2, '0');
-        
-        String fullCode = "$dtcChar1$dtcChar2$dtcChars34";
-        String meaning = faultCodeMeanings[fullCode] ?? "Unknown fault code";
-        codes.add({"code": fullCode, "meaning": meaning});
+  void updateDTC(String hexResponse) {
+    List<Map<String, String>> codes = [];
+    if (hexResponse.startsWith("43")) {
+      List<String> bytes = hexResponse.split(' ');
+      for (int i = 1; i < bytes.length; i += 2) {
+        if (i + 1 < bytes.length) {
+          String dtcChar1 = _getDTCChar(int.parse(bytes[i][0], radix: 16));
+          String dtcChar2 = bytes[i][1];
+          String dtcChars34 = bytes[i + 1];
+          String fullCode = "$dtcChar1$dtcChar2$dtcChars34";
+          String meaning = faultCodeMeanings[fullCode] ?? "Unknown fault code";
+          codes.add({"code": fullCode, "meaning": meaning});
+        }
       }
     }
+    setState(() {
+      faultCodes = codes;
+      affectedPart = getAffectedPart(codes);
+    });
   }
-  setState(() {
-    faultCodes = codes;
-    affectedPart = getAffectedPart(codes);
-  });
-}
 
-
-String _getDTCChar(int value) {
-  List<String> codeTypes = ['P', 'C', 'B', 'U'];
-  if (value >= 0 && value < codeTypes.length) {
-    return codeTypes[value];
-  }
-  return "?";
-}
-String getAffectedPart(List<Map<String, String>> codes) {
-  if (codes.isEmpty) return 'None';
-
-  Set<String> affectedParts = Set();
-  for (var code in codes) {
-    switch (code['code']![0]) {
-      case 'P':
-        affectedParts.add('Engine');
-        break;
-      case 'C':
-        affectedParts.add('Chassis');
-        break;
-      case 'B':
-        affectedParts.add('Body');
-        break;
-      case 'U':
-        affectedParts.add('Network');
-        break;
+  String _getDTCChar(int value) {
+    switch (value) {
+      case 0: return "P0";
+      case 1: return "P1";
+      case 2: return "P2";
+      case 3: return "P3";
+      case 4: return "C0";
+      case 5: return "C1";
+      case 6: return "C2";
+      case 7: return "C3";
+      case 8: return "B0";
+      case 9: return "B1";
+      case 10: return "B2";
+      case 11: return "B3";
+      case 12: return "U0";
+      case 13: return "U1";
+      case 14: return "U2";
+      case 15: return "U3";
+      default: return "?";
     }
   }
 
-  return affectedParts.join(', ');
-}
+  String getAffectedPart(List<Map<String, String>> codes) {
+    if (codes.isEmpty) return 'None';
+
+    String firstCode = codes[0]['code']!;
+    switch (firstCode[0]) {
+      case 'P':
+        return 'Engine';
+      case 'C':
+        return 'Chassis';
+      case 'B':
+        return 'Body';
+      case 'U':
+        return 'Network';
+      default:
+        return 'Unknown';
+    }
+  }
   
 @override
 Widget build(BuildContext context) {
